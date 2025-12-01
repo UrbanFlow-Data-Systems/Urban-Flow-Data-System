@@ -1,0 +1,9 @@
+# Exclude Airflow runtime and logs
+airflow/logs/
+airflow/dags/__pycache__/
+*.pyc
+
+# General ignores
+.env
+*.log
+__pycache__/

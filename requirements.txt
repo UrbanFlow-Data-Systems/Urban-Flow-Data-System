@@ -1,0 +1,23 @@
+# Kafka Producer Requirements
+kafka-python==2.0.2
+
+# Spark Processing Requirements
+pyspark==3.5.0
+
+# PostgreSQL Driver
+psycopg2-binary==2.9.9
+
+# Data Processing
+pandas==2.1.3
+numpy==1.26.2
+
+# Airflow Requirements (if running locally)
+apache-airflow==2.7.3
+apache-airflow-providers-postgres==5.7.1
+
+# Visualization (for report generation)
+matplotlib==3.8.2
+seaborn==0.13.0
+
+# Utilities
+python-dateutil==2.8.2
