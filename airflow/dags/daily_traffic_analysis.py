@@ -75,6 +75,25 @@ def extract_daily_traffic_data(**context):
     
     return len(df)
 
+# def create_tables_if_not_exist():
+#     conn = psycopg2.connect(**db_config)
+#     cursor = conn.cursor()
+#     cursor.execute("""
+#         CREATE TABLE IF NOT EXISTS aggregated_stats (
+#             id SERIAL PRIMARY KEY,
+#             sensor_id INT NOT NULL,
+#             hour INT NOT NULL,
+#             avg_vehicle_count FLOAT,
+#             avg_speed FLOAT,
+#             total_vehicles INT,
+#             congestion_events INT,
+#             date DATE NOT NULL,
+#             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+#         );
+#     """)
+#     conn.commit()
+#     cursor.close()
+#     conn.close()
 
 def aggregate_hourly_statistics(**context):
     """
@@ -343,6 +362,10 @@ task_report = PythonOperator(
     python_callable=generate_intervention_report,
     dag=dag
 )
-
+# create_tables = PythonOperator(
+#     task_id='create_tables',
+#     python_callable=create_tables_if_not_exist,
+#     dag=dag,
+# )
 # Define task dependencies
-task_extract >> task_aggregate >> task_peak_hours >> task_report
+task_extract >>  task_aggregate >> task_peak_hours >> task_report

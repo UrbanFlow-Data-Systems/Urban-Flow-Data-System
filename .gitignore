@@ -7,3 +7,7 @@ airflow/dags/__pycache__/
 .env
 *.log
 __pycache__/
+
+spark_jobs/checkpoints/
+
+reports/

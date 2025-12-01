@@ -19,7 +19,7 @@ plt.rcParams['font.size'] = 10
 # Database connection parameters
 DB_CONFIG = {
     'host': 'localhost',
-    'port': 5432,
+    'port': 5433,
     'database': 'traffic_db',
     'user': 'smartcity',
     'password': 'smartcity123'
@@ -220,11 +220,13 @@ def create_intervention_summary(peak_df, analysis_date):
     
     # Chart 2: Intervention requirements
     intervention_counts = peak_df['requires_intervention'].value_counts()
-    colors_pie = ['red', 'green']
-    labels = ['Requires Intervention', 'Normal Operation']
-    
+    labels = ['Requires Intervention' if val else 'Normal Operation' 
+          for val in intervention_counts.index]
+    colors_pie = ['red' if val else 'green' for val in intervention_counts.index]
+
     ax2.pie(intervention_counts.values, labels=labels, autopct='%1.1f%%',
-            colors=colors_pie, startangle=90, textprops={'fontweight': 'bold'})
+        colors=colors_pie, startangle=90, textprops={'fontweight': 'bold'})
+
     ax2.set_title('Intervention Requirements', fontweight='bold')
     
     plt.suptitle(f'Intervention Analysis - {analysis_date}', 
