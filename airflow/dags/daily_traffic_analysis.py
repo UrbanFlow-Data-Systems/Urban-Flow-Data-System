@@ -1,9 +1,3 @@
-"""
-Smart City Traffic - Airflow DAG
-Nightly batch job for peak traffic analysis and intervention report generation
-Schedule: Daily at 1:00 AM
-"""
-
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -104,7 +98,7 @@ def aggregate_hourly_statistics(**context):
     analysis_date = ti.xcom_pull(key='analysis_date', task_ids='extract_daily_data')
     
     if not raw_data_json:
-        logger.warning("⚠️  No data to aggregate")
+        logger.warning("No data to aggregate")
         return None
     
     logger.info(f"📈 Aggregating hourly statistics for {analysis_date}")
@@ -133,7 +127,7 @@ def aggregate_hourly_statistics(**context):
     )
     hourly_stats['congestion_events'] = hourly_stats['congestion_events'].fillna(0).astype(int)
     
-    logger.info(f"✅ Aggregated {len(hourly_stats)} hourly records")
+    logger.info(f"Aggregated {len(hourly_stats)} hourly records")
     
     # Save aggregated data to database
     pg_hook = PostgresHook(postgres_conn_id='postgres_traffic_db')
@@ -167,7 +161,7 @@ def aggregate_hourly_statistics(**context):
     cursor.close()
     conn.close()
     
-    logger.info("✅ Aggregated statistics saved to database")
+    logger.info("Aggregated statistics saved to database")
     
     # Pass to next task
     ti.xcom_push(key='hourly_stats', value=hourly_stats.to_json())
@@ -247,7 +241,7 @@ def identify_peak_hours(**context):
     cursor.close()
     conn.close()
     
-    logger.info("✅ Peak traffic analysis saved to database")
+    logger.info("Peak traffic analysis saved to database")
     
     # Pass to report generation
     ti.xcom_push(key='peak_hours', value=peak_hours.to_json())
@@ -264,10 +258,10 @@ def generate_intervention_report(**context):
     analysis_date = ti.xcom_pull(key='analysis_date', task_ids='extract_daily_data')
     
     if not peak_hours_json:
-        logger.warning("⚠️  No peak hour data available")
+        logger.warning("No peak hour data available")
         return None
     
-    logger.info(f"📄 Generating intervention report for {analysis_date}")
+    logger.info(f"Generating intervention report for {analysis_date}")
     
     df = pd.read_json(peak_hours_json)
     
@@ -291,10 +285,10 @@ def generate_intervention_report(**context):
     report_lines.append("")
     
     if len(intervention_df) == 0:
-        report_lines.append("✅ NO INTERVENTIONS REQUIRED")
+        report_lines.append("NO INTERVENTIONS REQUIRED")
         report_lines.append("All junctions are operating within normal parameters.")
     else:
-        report_lines.append(f"🚨 INTERVENTIONS REQUIRED: {len(intervention_df)} Junction(s)")
+        report_lines.append(f"INTERVENTIONS REQUIRED: {len(intervention_df)} Junction(s)")
         report_lines.append("")
         
         for idx, row in intervention_df.iterrows():
@@ -314,7 +308,7 @@ def generate_intervention_report(**context):
     report_lines.append("")
     
     for _, row in df.iterrows():
-        status = "⚠️ REQUIRES ATTENTION" if row['requires_intervention'] else "✅ NORMAL"
+        status = "REQUIRES ATTENTION" if row['requires_intervention'] else "NORMAL"
         report_lines.append(f"{row['junction_name']}: {status}")
         report_lines.append(f"  Peak: {int(row['hour'])}:00 | Vehicles: {int(row['total_vehicles'])} | Speed: {row['avg_speed']:.2f} km/h")
         report_lines.append("")
@@ -330,7 +324,7 @@ def generate_intervention_report(**context):
     with open(report_filename, 'w') as f:
         f.write(report_text)
     
-    logger.info(f"✅ Report saved: {report_filename}")
+    logger.info(f"Report saved: {report_filename}")
     
     # Also log to console
     print("\n" + report_text)

@@ -41,16 +41,33 @@ services:
     image: postgres:15-alpine
     container_name: postgres
     ports:
-      - "5433:5432"
+      - "${POSTGRES_PORT}:5432"
     environment:
-      POSTGRES_USER: smartcity
-      POSTGRES_PASSWORD: smartcity123
-      POSTGRES_DB: traffic_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
     networks:
       - smart-city-network
+  
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+    - "3000:3000"
+    environment:
+    - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
+    - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    depends_on:
+    - postgres
+    networks:
+    - smart-city-network
+    volumes:
+    - grafana_data:/var/lib/grafana
 
   # Apache Spark Master
   spark-master:
@@ -101,7 +118,7 @@ services:
   airflow-postgres:
     image: postgres:15-alpine
     container_name: airflow-postgres
-    environmen
+    environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
@@ -124,8 +141,8 @@ services:
       AIRFLOW__WEBSERVER__SECRET_KEY: 'smartcity2024'
       _AIRFLOW_DB_UPGRADE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
-      _AIRFLOW_WWW_USER_USERNAME: admin
-      _AIRFLOW_WWW_USER_PASSWORD: admin123
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_USER}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_PASSWORD}
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
@@ -164,3 +181,4 @@ networks:
 volumes:
   postgres_data:
   airflow_postgres_data:
+  grafana_data:
