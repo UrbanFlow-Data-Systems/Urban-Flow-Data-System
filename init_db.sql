@@ -46,3 +46,12 @@ CREATE TABLE daily_summary (
   peak_hour INT,
   total_vehicles INT
 );
+
+CREATE TABLE IF NOT EXISTS immediate_congestion_alerts (
+    id SERIAL PRIMARY KEY,
+    sensor_id VARCHAR(50),
+    alert_timestamp TIMESTAMP,
+    avg_speed FLOAT,
+    vehicle_count INT,
+    severity VARCHAR(20)
+);

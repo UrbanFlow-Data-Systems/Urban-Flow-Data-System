@@ -53,7 +53,7 @@ SENSORS = [
 class TrafficDataGenerator:
     
     def __init__(self):
-        self.congestion_probability = 0.05  # 5% chance of congestion per sensor
+        self.congestion_probability = 0.10  # 10% chance of congestion per sensor
         self.congestion_duration = {}  # Track ongoing congestion
         
     def get_time_multiplier(self):

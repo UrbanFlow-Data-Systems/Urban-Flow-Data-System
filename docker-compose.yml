@@ -143,6 +143,8 @@ services:
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_USER}
       _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_PASSWORD}
+      _PIP_ADDITIONAL_REQUIREMENTS: >-
+        matplotlib pandas seaborn psycopg2-binary
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
@@ -165,6 +167,8 @@ services:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
       AIRFLOW__CORE__FERNET_KEY: 'UKMzEm3yIuFYEq1y3-2FxaP3jN5VcpXvkLd8J7E3T1Q='
+      _PIP_ADDITIONAL_REQUIREMENTS: "matplotlib pandas seaborn psycopg2-binary"
+
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs

@@ -1,13 +1,14 @@
-"""
-Traffic Volume vs Time of Day Visualization
-Generates visual analytics report from processed data
-"""
 
 import psycopg2
 import pandas as pd
+import matplotlib
+matplotlib.use("Agg")  
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime, timedelta
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+import os
+
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -16,25 +17,10 @@ sns.set_style("whitegrid")
 plt.rcParams['figure.figsize'] = (16, 10)
 plt.rcParams['font.size'] = 10
 
-# Database connection parameters
-DB_CONFIG = {
-    'host': 'localhost',
-    'port': 5433,
-    'database': 'traffic_db',
-    'user': 'smartcity',
-    'password': 'smartcity123'
-}
-
-
 def get_database_connection():
     """Establish PostgreSQL connection"""
-    try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        print("✅ Connected to PostgreSQL database")
-        return conn
-    except Exception as e:
-        print(f"❌ Database connection failed: {e}")
-        raise
+    hook = PostgresHook(postgres_conn_id="postgres_traffic_db")
+    return hook.get_conn()
 
 
 def fetch_traffic_data(conn, analysis_date=None):
@@ -52,7 +38,7 @@ def fetch_traffic_data(conn, analysis_date=None):
         agg.total_vehicles,
         agg.congestion_events
     FROM aggregated_stats agg
-    JOIN junctions j ON agg.sensor_id = j.sensor_id
+    JOIN junctions j ON agg.sensor_id::text = j.sensor_id::text
     WHERE agg.date = '{analysis_date}'
     ORDER BY agg.sensor_id, agg.hour
     """
@@ -77,7 +63,7 @@ def fetch_peak_analysis(conn, analysis_date=None):
         p.requires_intervention,
         p.intervention_priority
     FROM peak_traffic_analysis p
-    JOIN junctions j ON p.sensor_id = j.sensor_id
+    JOIN junctions j ON p.sensor_id::text = j.sensor_id::text
     WHERE p.analysis_date = '{analysis_date}'
     ORDER BY p.intervention_priority NULLS LAST, p.peak_vehicle_count DESC
     """
@@ -281,78 +267,42 @@ def generate_summary_table(df, peak_df, analysis_date):
     return fig
 
 
-def main():
-    """Generate complete traffic analysis report"""
-    print("=" * 80)
-    print("SMART CITY TRAFFIC ANALYSIS - VISUALIZATION REPORT GENERATOR")
-    print("=" * 80)
-    
-    # Get analysis date (yesterday by default)
-    analysis_date = (datetime.now() - timedelta(days=1)).date()
-    print(f"Analysis Date: {analysis_date}")
-    
-    # Connect to database
+def generate_visualization_report(**context):
+    analysis_date = context['ti'].xcom_pull(
+        key='analysis_date',
+        task_ids='extract_daily_data'
+    )
+
     conn = get_database_connection()
+
+    traffic_df = fetch_traffic_data(conn, analysis_date)
+    peak_df = fetch_peak_analysis(conn, analysis_date)
+
+    if traffic_df.empty:
+        return "No data for visualization"
+
+    output_dir = "/opt/airflow/reports/visualizations"
+    os.makedirs(output_dir, exist_ok=True)
+
+    fig1 = create_traffic_volume_chart(traffic_df, analysis_date)
+    fig1.savefig(f"{output_dir}/traffic_volume_{analysis_date}.png", dpi=300)
+    fig1.close()
+
+    fig2 = create_congestion_heatmap(traffic_df, analysis_date)
+    fig2.savefig(f"{output_dir}/congestion_heatmap_{analysis_date}.png", dpi=300)
+    fig2.close()
+
+    fig3 = create_speed_analysis_chart(traffic_df, analysis_date)
+    fig3.savefig(f"{output_dir}/speed_analysis_{analysis_date}.png", dpi=300)
+    fig3.close()
+    if not peak_df.empty:
+        fig4 = create_intervention_summary(peak_df, analysis_date)
+        fig4.savefig(f"{output_dir}/intervention_summary_{analysis_date}.png", dpi=300)
+        fig4.close()
     
-    try:
-        # Fetch data
-        print("\n📊 Fetching traffic data...")
-        traffic_df = fetch_traffic_data(conn, analysis_date)
-        peak_df = fetch_peak_analysis(conn, analysis_date)
-        
-        if traffic_df.empty:
-            print("⚠️  No traffic data available for visualization")
-            return
-        
-        print(f"\n📈 Generating visualizations...")
-        
-        # Generate charts
-        fig1 = create_traffic_volume_chart(traffic_df, analysis_date)
-        print("  ✅ Traffic Volume vs Time chart created")
-        
-        fig2 = create_congestion_heatmap(traffic_df, analysis_date)
-        print("  ✅ Congestion heatmap created")
-        
-        fig3 = create_speed_analysis_chart(traffic_df, analysis_date)
-        print("  ✅ Speed analysis chart created")
-        
-        if not peak_df.empty:
-            fig4 = create_intervention_summary(peak_df, analysis_date)
-            print("  ✅ Intervention summary created")
-            
-            fig5 = generate_summary_table(traffic_df, peak_df, analysis_date)
-            print("  ✅ Summary table created")
-        
-        # Save figures
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = "reports"
-        
-        fig1.savefig(f'{output_dir}/traffic_volume_{analysis_date}.png', 
-                     dpi=300, bbox_inches='tight')
-        fig2.savefig(f'{output_dir}/congestion_heatmap_{analysis_date}.png', 
-                     dpi=300, bbox_inches='tight')
-        fig3.savefig(f'{output_dir}/speed_analysis_{analysis_date}.png', 
-                     dpi=300, bbox_inches='tight')
-        
-        if not peak_df.empty:
-            fig4.savefig(f'{output_dir}/intervention_summary_{analysis_date}.png', 
-                         dpi=300, bbox_inches='tight')
-            fig5.savefig(f'{output_dir}/summary_table_{analysis_date}.png', 
-                         dpi=300, bbox_inches='tight')
-        
-        print(f"\n✅ All visualizations saved to {output_dir}/ directory")
-        print("=" * 80)
-        
-        # Show plots
-        plt.show()
-        
-    except Exception as e:
-        print(f"❌ Error generating report: {e}")
-        raise
-    finally:
-        conn.close()
-        print("Database connection closed")
-
-
-if __name__ == "__main__":
-    main()
+        fig5 = generate_summary_table(traffic_df, peak_df, analysis_date)
+        fig5.savefig(f"{output_dir}/summary_table_{analysis_date}.png", dpi=300)
+        fig5.close()
+    
+    conn.close()
+    return "Visualization report generated"

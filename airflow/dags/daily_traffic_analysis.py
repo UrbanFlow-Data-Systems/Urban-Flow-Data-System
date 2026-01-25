@@ -4,6 +4,7 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 import pandas as pd
 import logging
+from visualization_report import generate_visualization_report
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -139,7 +140,7 @@ def aggregate_hourly_statistics(**context):
         cursor.execute("""
             INSERT INTO aggregated_stats 
             (sensor_id, date, hour, avg_vehicle_count, avg_speed, 
-             total_vehicles, congestion_events)
+            total_vehicles, congestion_events)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (sensor_id, date, hour) 
             DO UPDATE SET
@@ -268,6 +269,9 @@ def generate_intervention_report(**context):
     # Get junction names
     pg_hook = PostgresHook(postgres_conn_id='postgres_traffic_db')
     junctions = pg_hook.get_pandas_df("SELECT sensor_id, junction_name, location FROM junctions")
+
+    df['sensor_id'] = df['sensor_id'].astype(str)
+    junctions['sensor_id'] = junctions['sensor_id'].astype(str)
     
     df = df.merge(junctions, on='sensor_id', how='left')
     
@@ -356,10 +360,11 @@ task_report = PythonOperator(
     python_callable=generate_intervention_report,
     dag=dag
 )
-# create_tables = PythonOperator(
-#     task_id='create_tables',
-#     python_callable=create_tables_if_not_exist,
-#     dag=dag,
-# )
-# Define task dependencies
-task_extract >>  task_aggregate >> task_peak_hours >> task_report
+
+task_visualization = PythonOperator(
+    task_id='generate_visual_report',
+    python_callable=generate_visualization_report,
+    dag=dag
+)
+
+task_extract >>  task_aggregate >> task_peak_hours >> task_report >> task_visualization
