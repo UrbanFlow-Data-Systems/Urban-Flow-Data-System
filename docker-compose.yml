@@ -134,6 +134,7 @@ services:
     depends_on:
       - airflow-postgres
     environment:
+      AIRFLOW__API__AUTH_BACKEND: airflow.api.auth.backend.basic_auth # to enable basic auth for API access
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
       AIRFLOW__CORE__FERNET_KEY: 'UKMzEm3yIuFYEq1y3-2FxaP3jN5VcpXvkLd8J7E3T1Q='

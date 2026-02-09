@@ -24,7 +24,7 @@ def get_database_connection():
 
 
 def fetch_traffic_data(conn, analysis_date=None):
-    """Fetch aggregated traffic data from database"""
+
     if analysis_date is None:
         analysis_date = (datetime.now() - timedelta(days=1)).date()
     
@@ -44,7 +44,7 @@ def fetch_traffic_data(conn, analysis_date=None):
     """
     
     df = pd.read_sql(query, conn)
-    print(f"✅ Fetched {len(df)} records for {analysis_date}")
+    print(f"Fetched {len(df)} records for {analysis_date}")
     return df
 
 
@@ -69,12 +69,11 @@ def fetch_peak_analysis(conn, analysis_date=None):
     """
     
     df = pd.read_sql(query, conn)
-    print(f"✅ Fetched peak analysis for {len(df)} junctions")
+    print(f"Fetched peak analysis for {len(df)} junctions")
     return df
 
 
 def create_traffic_volume_chart(df, analysis_date):
-    """Create Traffic Volume vs Time of Day chart"""
     fig, axes = plt.subplots(2, 2, figsize=(18, 12))
     fig.suptitle(f'Traffic Volume vs Time of Day - {analysis_date}', 
                  fontsize=16, fontweight='bold', y=0.995)
@@ -222,7 +221,6 @@ def create_intervention_summary(peak_df, analysis_date):
 
 
 def generate_summary_table(df, peak_df, analysis_date):
-    """Generate summary statistics table"""
     fig, ax = plt.subplots(figsize=(14, 6))
     ax.axis('tight')
     ax.axis('off')
@@ -268,10 +266,12 @@ def generate_summary_table(df, peak_df, analysis_date):
 
 
 def generate_visualization_report(**context):
-    analysis_date = context['ti'].xcom_pull(
-        key='analysis_date',
-        task_ids='extract_daily_data'
-    )
+    # analysis_date = context['ti'].xcom_pull(
+    #     key='analysis_date',
+    #     task_ids='extract_daily_data'
+    # )
+    analysis_date = "2026-02-09"
+
 
     conn = get_database_connection()
 
@@ -286,23 +286,23 @@ def generate_visualization_report(**context):
 
     fig1 = create_traffic_volume_chart(traffic_df, analysis_date)
     fig1.savefig(f"{output_dir}/traffic_volume_{analysis_date}.png", dpi=300)
-    fig1.close()
+    # fig1.close()
 
     fig2 = create_congestion_heatmap(traffic_df, analysis_date)
     fig2.savefig(f"{output_dir}/congestion_heatmap_{analysis_date}.png", dpi=300)
-    fig2.close()
+    # fig2.close()
 
     fig3 = create_speed_analysis_chart(traffic_df, analysis_date)
     fig3.savefig(f"{output_dir}/speed_analysis_{analysis_date}.png", dpi=300)
-    fig3.close()
+    # fig3.close()
     if not peak_df.empty:
         fig4 = create_intervention_summary(peak_df, analysis_date)
         fig4.savefig(f"{output_dir}/intervention_summary_{analysis_date}.png", dpi=300)
-        fig4.close()
+        # fig4.close()
     
         fig5 = generate_summary_table(traffic_df, peak_df, analysis_date)
         fig5.savefig(f"{output_dir}/summary_table_{analysis_date}.png", dpi=300)
-        fig5.close()
+        # fig5.close()
     
     conn.close()
     return "Visualization report generated"

@@ -5,6 +5,8 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 import pandas as pd
 import logging
 from visualization_report import generate_visualization_report
+import matplotlib.pyplot as plt
+import os
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -30,15 +32,13 @@ dag = DAG(
     tags=['traffic', 'analytics', 'batch']
 )
 
-
+# Task 1
 def extract_daily_traffic_data(**context):
-    """
-    Task 1: Extract previous day's traffic data from PostgreSQL
-    """
     execution_date = context['execution_date']
+    logger.info(f"Starting data extraction for {execution_date}")
+
     analysis_date = (execution_date - timedelta(days=1)).date()
-    
-    logger.info(f"📊 Extracting traffic data for: {analysis_date}")
+    logger.info(f"Extracting traffic data for: {analysis_date}")
     
     # Get PostgreSQL connection
     pg_hook = PostgresHook(postgres_conn_id='postgres_traffic_db')
@@ -59,10 +59,10 @@ def extract_daily_traffic_data(**context):
     df = pg_hook.get_pandas_df(query)
     
     if df.empty:
-        logger.warning(f"⚠️  No data found for {analysis_date}")
+        logger.warning(f"No data found for {analysis_date}")
         return None
     
-    logger.info(f"✅ Extracted {len(df)} records")
+    logger.info(f"Extracted {len(df)} records")
     
     # Save to XCom for next task
     context['ti'].xcom_push(key='raw_data', value=df.to_json())
@@ -70,30 +70,9 @@ def extract_daily_traffic_data(**context):
     
     return len(df)
 
-# def create_tables_if_not_exist():
-#     conn = psycopg2.connect(**db_config)
-#     cursor = conn.cursor()
-#     cursor.execute("""
-#         CREATE TABLE IF NOT EXISTS aggregated_stats (
-#             id SERIAL PRIMARY KEY,
-#             sensor_id INT NOT NULL,
-#             hour INT NOT NULL,
-#             avg_vehicle_count FLOAT,
-#             avg_speed FLOAT,
-#             total_vehicles INT,
-#             congestion_events INT,
-#             date DATE NOT NULL,
-#             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-#         );
-#     """)
-#     conn.commit()
-#     cursor.close()
-#     conn.close()
-
+# Task 2
 def aggregate_hourly_statistics(**context):
-    """
-    Task 2: Aggregate traffic data by sensor and hour
-    """
+
     ti = context['ti']
     raw_data_json = ti.xcom_pull(key='raw_data', task_ids='extract_daily_data')
     analysis_date = ti.xcom_pull(key='analysis_date', task_ids='extract_daily_data')
@@ -102,11 +81,12 @@ def aggregate_hourly_statistics(**context):
         logger.warning("No data to aggregate")
         return None
     
-    logger.info(f"📈 Aggregating hourly statistics for {analysis_date}")
+    logger.info(f"Aggregating hourly statistics for {analysis_date}")
     
     # Load data from XCom
     df = pd.read_json(raw_data_json)
-    
+    logger.info(f"Loaded {len(df)} records")
+
     # Aggregate by sensor and hour
     hourly_stats = df.groupby(['sensor_id', 'hour']).agg({
         'vehicle_count': ['mean', 'sum'],
@@ -117,7 +97,7 @@ def aggregate_hourly_statistics(**context):
                             'total_vehicles', 'avg_speed']
     
     # Count congestion events (speed < 10 km/h)
-    congestion_counts = df[df['avg_speed'] < 10].groupby(['sensor_id', 'hour']).size()
+    congestion_counts = df[df['avg_speed'] < 20].groupby(['sensor_id', 'hour']).size()
     congestion_counts = congestion_counts.reset_index(name='congestion_events')
     
     # Merge with hourly stats
@@ -169,22 +149,21 @@ def aggregate_hourly_statistics(**context):
     
     return len(hourly_stats)
 
-
+# Task 3
 def identify_peak_hours(**context):
-    """
-    Task 3: Identify peak traffic hours for each junction
-    """
+
     ti = context['ti']
     hourly_stats_json = ti.xcom_pull(key='hourly_stats', task_ids='aggregate_hourly_stats')
     analysis_date = ti.xcom_pull(key='analysis_date', task_ids='extract_daily_data')
-    
+
     if not hourly_stats_json:
-        logger.warning("⚠️  No hourly statistics available")
+        logger.warning("No hourly statistics available")
         return None
     
-    logger.info(f"🔍 Identifying peak traffic hours for {analysis_date}")
+    logger.info(f"Identifying peak traffic hours for {analysis_date}")
     
     df = pd.read_json(hourly_stats_json)
+    logger.info(f"Loaded {len(df)} hourly records for analysis")
     
     # Find peak hour for each sensor (highest total vehicles)
     peak_hours = df.loc[df.groupby('sensor_id')['total_vehicles'].idxmax()]
@@ -194,21 +173,21 @@ def identify_peak_hours(**context):
     peak_hours['requires_intervention'] = (
         (peak_hours['congestion_events'] >= 5) |
         (peak_hours['total_vehicles'] > df['total_vehicles'].quantile(0.75)) |
-        (peak_hours['avg_speed'] < 15)
+        (peak_hours['avg_speed'] < 20)
     )
     
     # Calculate intervention priority (1=highest, 4=lowest)
     peak_hours['intervention_priority'] = peak_hours.apply(
         lambda row: (
             1 if row['congestion_events'] >= 10 else
-            2 if row['avg_speed'] < 10 else
+            2 if row['avg_speed'] < 20 else
             3 if row['total_vehicles'] > df['total_vehicles'].quantile(0.9) else
             4
         ) if row['requires_intervention'] else None,
         axis=1
     )
     
-    logger.info(f"✅ Identified peak hours for {len(peak_hours)} junctions")
+    logger.info(f"Identified peak hours for {len(peak_hours)} junctions")
     
     # Save to database
     pg_hook = PostgresHook(postgres_conn_id='postgres_traffic_db')
@@ -249,22 +228,21 @@ def identify_peak_hours(**context):
     
     return peak_hours['requires_intervention'].sum()
 
-
+# Task 4
 def generate_intervention_report(**context):
-    """
-    Task 4: Generate intervention report for traffic police
-    """
+
     ti = context['ti']
     peak_hours_json = ti.xcom_pull(key='peak_hours', task_ids='identify_peak_hours')
     analysis_date = ti.xcom_pull(key='analysis_date', task_ids='extract_daily_data')
     
     if not peak_hours_json:
-        logger.warning("No peak hour data available")
-        return None
+        logger.warning("No peak hour data available - generating empty report")
+        peak_hours_json = "[]"
     
     logger.info(f"Generating intervention report for {analysis_date}")
     
     df = pd.read_json(peak_hours_json)
+    logger.info(f"Loaded {len(df)} peak hour records for report generation")
     
     # Get junction names
     pg_hook = PostgresHook(postgres_conn_id='postgres_traffic_db')
@@ -299,7 +277,6 @@ def generate_intervention_report(**context):
             priority_label = {1: "CRITICAL", 2: "HIGH", 3: "MEDIUM", 4: "LOW"}
             report_lines.append(f"Priority {row['intervention_priority']}: {priority_label.get(row['intervention_priority'], 'N/A')}")
             report_lines.append(f"  Junction: {row['junction_name']}")
-            report_lines.append(f"  Location: {row['location']}")
             report_lines.append(f"  Peak Hour: {int(row['hour'])}:00")
             report_lines.append(f"  Total Vehicles: {int(row['total_vehicles'])}")
             report_lines.append(f"  Average Speed: {row['avg_speed']:.2f} km/h")
@@ -336,6 +313,89 @@ def generate_intervention_report(**context):
     return report_filename
 
 
+def generate_traffic_volume_vs_time_report(**context):
+    """
+    Analytic Report:
+    Traffic Volume vs Time of Day
+    """
+
+    # --------------------------------------------------
+    # 1. Get analysis date from XCom
+    # --------------------------------------------------
+    ti = context['ti']
+    analysis_date = ti.xcom_pull(
+        key='analysis_date',
+        task_ids='extract_daily_data'
+    )
+
+    if not analysis_date:
+        logger.warning("No analysis date found. Skipping analytic report.")
+        return "No analysis date"
+
+    logger.info(f"Generating Traffic Volume vs Time report for {analysis_date}")
+
+    # --------------------------------------------------
+    # 2. Database connection
+    # --------------------------------------------------
+    # Save to database
+    pg_hook = PostgresHook(postgres_conn_id='postgres_traffic_db')
+
+    # --------------------------------------------------
+    # 3. Query traffic volume by hour
+    # --------------------------------------------------
+    query = f"""
+        SELECT
+            hour,
+            SUM(total_vehicles) AS traffic_volume
+        FROM aggregated_stats
+        WHERE date = '{analysis_date}'
+        GROUP BY hour
+        ORDER BY hour;
+    """
+
+    df = pg_hook.get_pandas_df(query)
+
+
+    if df.empty:
+        logger.warning("No data available for Traffic Volume vs Time report.")
+        return "No data for analytic report"
+
+    # --------------------------------------------------
+    # 4. Ensure output directory exists
+    # --------------------------------------------------
+    output_dir = "/opt/airflow/reports/analytics"
+    os.makedirs(output_dir, exist_ok=True)
+
+    # --------------------------------------------------
+    # 5. Save table as CSV
+    # --------------------------------------------------
+    csv_path = f"{output_dir}/traffic_volume_vs_time_{analysis_date}.csv"
+    df.to_csv(csv_path, index=False)
+    logger.info(f"Saved analytic table: {csv_path}")
+
+    # --------------------------------------------------
+    # 6. Generate visualization
+    # --------------------------------------------------
+    plt.figure(figsize=(10, 6))
+    plt.plot(df['hour'], df['traffic_volume'], marker='o')
+    plt.title(f"Traffic Volume vs Time of Day ({analysis_date})")
+    plt.xlabel("Hour of Day")
+    plt.ylabel("Total Vehicles")
+    plt.xticks(range(0, 24))
+    plt.grid(True)
+
+    img_path = f"{output_dir}/traffic_volume_vs_time_{analysis_date}.png"
+    plt.savefig(img_path)
+    plt.close()
+
+    logger.info(f"Saved analytic visualization: {img_path}")
+
+    return {
+        "date": analysis_date,
+        "csv": csv_path,
+        "image": img_path
+    }
+
 # Define tasks
 task_extract = PythonOperator(
     task_id='extract_daily_data',
@@ -367,4 +427,10 @@ task_visualization = PythonOperator(
     dag=dag
 )
 
-task_extract >>  task_aggregate >> task_peak_hours >> task_report >> task_visualization
+task_analytic_report = PythonOperator(
+    task_id='generate_traffic_volume_vs_time_report',
+    python_callable=generate_traffic_volume_vs_time_report,
+    dag=dag
+)
+
+task_extract >>  task_aggregate >> task_peak_hours >> task_report >> task_visualization >> task_analytic_report
