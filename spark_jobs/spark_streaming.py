@@ -29,7 +29,7 @@ POSTGRES_PROPERTIES = {
 }
 
 # Congestion detection threshold
-CONGESTION_SPEED_THRESHOLD = 20.0  # km/h
+CONGESTION_SPEED_THRESHOLD = 40.0  # km/h
 
 # Define schema for incoming traffic data
 traffic_schema = StructType([
@@ -186,27 +186,27 @@ def write_to_kafka(batch_df, batch_id):
     else:
         logger.info(f"No critical alerts in this batch")
 
-def write_immediate_alerts_to_kafka(batch_df, batch_id):
-    count = batch_df.count()
-    if count == 0:
-        return
+# def write_immediate_alerts_to_kafka(batch_df, batch_id):
+#     count = batch_df.count()
+#     if count == 0:
+#         return
 
-    logger.warning(f"🚨 IMMEDIATE ALERTS: {count} critical events")
+#     logger.warning(f"🚨 IMMEDIATE ALERTS: {count} critical events")
 
-    kafka_df = batch_df.selectExpr(
-        "sensor_id",
-        "CAST(alert_timestamp AS STRING) AS alert_timestamp",
-        "CAST(avg_speed AS STRING) AS avg_speed",
-        "CAST(vehicle_count AS STRING) AS vehicle_count",
-        "severity"
-    )
+#     kafka_df = batch_df.selectExpr(
+#         "sensor_id",
+#         "CAST(alert_timestamp AS STRING) AS alert_timestamp",
+#         "CAST(avg_speed AS STRING) AS avg_speed",
+#         "CAST(vehicle_count AS STRING) AS vehicle_count",
+#         "severity"
+#     )
 
-    kafka_df.selectExpr("to_json(struct(*)) AS value") \
-        .write \
-        .format("kafka") \
-        .option("kafka.bootstrap.servers", KAFKA_BROKER) \
-        .option("topic", KAFKA_ALERT_TOPIC) \
-        .save()
+#     kafka_df.selectExpr("to_json(struct(*)) AS value") \
+#         .write \
+#         .format("kafka") \
+#         .option("kafka.bootstrap.servers", KAFKA_BROKER) \
+#         .option("topic", KAFKA_ALERT_TOPIC) \
+#         .save()
 
 
 def console_output(df, query_name):
@@ -244,19 +244,19 @@ def main():
             .option("checkpointLocation", f"{CHECKPOINT_DIR}/raw") \
             .start()
         
-        immediate_critical_stream = traffic_stream.filter(col("avg_speed") < 20) \
-        .withColumn("alert_timestamp", current_timestamp()) \
-        .withColumn("severity", lit("CRITICAL"))
+        # immediate_critical_stream = traffic_stream.filter(col("avg_speed") < 20) \
+        # .withColumn("alert_timestamp", current_timestamp()) \
+        # .withColumn("severity", lit("CRITICAL"))
 
-        immediate_db_query = immediate_critical_stream.writeStream \
-        .foreachBatch(write_to_postgres("immediate_congestion_alerts")) \
-        .option("checkpointLocation", f"{CHECKPOINT_DIR}/immediate_db") \
-        .start()
+        # immediate_db_query = immediate_critical_stream.writeStream \
+        # .foreachBatch(write_to_postgres("immediate_congestion_alerts")) \
+        # .option("checkpointLocation", f"{CHECKPOINT_DIR}/immediate_db") \
+        # .start()
 
-        immediate_kafka_query = immediate_critical_stream.writeStream \
-        .foreachBatch(write_immediate_alerts_to_kafka) \
-        .option("checkpointLocation", f"{CHECKPOINT_DIR}/immediate_kafka") \
-        .start()
+        # immediate_kafka_query = immediate_critical_stream.writeStream \
+        # .foreachBatch(write_immediate_alerts_to_kafka) \
+        # .option("checkpointLocation", f"{CHECKPOINT_DIR}/immediate_kafka") \
+        # .start()
        
         
         # Process with windowing
