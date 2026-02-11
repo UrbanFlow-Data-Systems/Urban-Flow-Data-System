@@ -334,15 +334,10 @@ def generate_traffic_volume_vs_time_report(**context):
 
     logger.info(f"Generating Traffic Volume vs Time report for {analysis_date}")
 
-    # --------------------------------------------------
-    # 2. Database connection
-    # --------------------------------------------------
-    # Save to database
+
     pg_hook = PostgresHook(postgres_conn_id='postgres_traffic_db')
 
-    # --------------------------------------------------
-    # 3. Query traffic volume by hour
-    # --------------------------------------------------
+    # Query traffic volume by hour
     query = f"""
         SELECT
             hour,
