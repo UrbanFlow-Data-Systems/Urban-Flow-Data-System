@@ -44,7 +44,7 @@ def create_spark_session():
     spark = SparkSession.builder \
         .appName("SmartCityTrafficProcessing") \
         .config("spark.jars.packages", 
-                "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,"
+                "org.apache.spark:spark-sql-kafka-0-10_2.13:4.0.1,"
                 "org.postgresql:postgresql:42.6.0") \
         .config("spark.sql.streaming.checkpointLocation", CHECKPOINT_DIR) \
         .config("spark.sql.shuffle.partitions", "4") \

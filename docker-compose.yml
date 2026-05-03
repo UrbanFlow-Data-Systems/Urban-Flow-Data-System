@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Zookeeper for Kafka
   zookeeper:
@@ -74,7 +72,7 @@ services:
     image: apache/spark:latest
     container_name: spark-master
     ports:
-      - "8080:8080"
+      - "9090:8080"
       - "7077:7077"
       - "4040:4040"  # Spark Application UI
     environment:

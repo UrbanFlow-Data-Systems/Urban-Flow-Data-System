@@ -37,6 +37,25 @@ def health_check():
     """Health check endpoint"""
     return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
 
+@app.route('/', methods=['GET'])
+def index():
+    """Root endpoint with quick API guide"""
+    return jsonify({
+        'service': 'Smart City Traffic API',
+        'status': 'running',
+        'endpoints': [
+            '/api/health',
+            '/api/traffic/current',
+            '/api/traffic/timeseries/<sensor_id>',
+            '/api/traffic/timeseries/all',
+            '/api/alerts/active',
+            '/api/statistics/summary',
+            '/api/statistics/hourly',
+            '/api/junctions'
+        ],
+        'timestamp': datetime.now().isoformat()
+    })
+
 @app.route('/api/traffic/current', methods=['GET'])
 def get_current_traffic():
     """Get current traffic status for all junctions (last 5 minutes)"""

@@ -2,11 +2,19 @@ import json
 import time
 import random
 from datetime import datetime
-from kafka import KafkaProducer
-from kafka.errors import KafkaError
 import logging
 from dotenv import load_dotenv
 import os
+import sys
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+for path in (PROJECT_ROOT, ""):
+    if path in sys.path:
+        sys.path.remove(path)
+
+from kafka import KafkaProducer
+from kafka.errors import KafkaError
+
 load_dotenv()
 
 # Kafka configuration
