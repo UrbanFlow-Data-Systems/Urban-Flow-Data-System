@@ -76,25 +76,150 @@ smart-city-traffic/
 ```
 
 ### How to Run the Project
-1. Start Infrastructure
-```bash
-   docker-compose up -d
-```
 
+#### 1. Start All Services
 
-2. Run Kafka Producer
-```bash
-   python kafka/sensor_producer.py
-```
-
-3. Run Spark Streaming Job
+Start the complete infrastructure using Docker Compose.
 
 ```bash
-   spark-submit spark/traffic_streaming.py
+docker-compose up -d
 ```
 
-5. Access Dashboards
+This will start:
 
-React: http://localhost:5173
+- PostgreSQL
+- Zookeeper
+- Kafka
+- Spark Master & Worker
+- Apache Airflow
 
-Airflow: http://localhost:8085
+---
+
+#### 2. Create Kafka Topics
+
+Create the required Kafka topics for traffic streaming and congestion alerts.
+
+```bash
+docker exec -it kafka kafka-topics \
+--bootstrap-server kafka:9093 \
+--create \
+--topic traffic-data \
+--partitions 4 \
+--replication-factor 1
+```
+
+```bash
+docker exec -it kafka kafka-topics \
+--bootstrap-server kafka:9093 \
+--create \
+--topic critical-traffic \
+--partitions 4 \
+--replication-factor 1
+```
+
+Verify created topics:
+
+```bash
+docker exec -it kafka kafka-topics \
+--bootstrap-server kafka:9093 \
+--list
+```
+
+---
+
+#### 3. Start Traffic Sensor Producer
+
+Run the Python-based IoT traffic sensor simulator.
+
+```bash
+python kafka/sensor_producer.py
+```
+
+This continuously publishes real-time traffic data to the `traffic-data` Kafka topic.
+
+---
+
+#### 4. Run Spark Structured Streaming Job
+
+Submit the Spark streaming application to the Spark cluster.
+
+```bash
+docker exec -it spark-master \
+/opt/spark/bin/spark-submit \
+--master spark://spark-master:7077 \
+--packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.0.1,org.postgresql:postgresql:42.6.0 \
+--conf spark.driver.extraJavaOptions="-Duser.home=/tmp" \
+--conf spark.executor.extraJavaOptions="-Duser.home=/tmp" \
+/opt/spark-jobs/spark_streaming.py
+```
+
+The streaming application:
+
+- Consumes traffic data from Kafka
+- Performs window-based analytics
+- Detects congestion events
+- Stores processed data in PostgreSQL
+- Sends critical alerts to Kafka
+
+---
+
+#### 5. Configure Apache Airflow PostgreSQL Connection
+
+Open Airflow UI:
+
+```text
+http://localhost:8085
+```
+
+Login Credentials:
+
+| Username | Password |
+|----------|----------|
+| admin | admin123 |
+
+Navigate to:
+
+```text
+Admin → Connections
+```
+
+Create a new PostgreSQL connection using the following settings:
+
+| Field | Value |
+|------|------|
+| Conn Id | postgres_traffic_db |
+| Conn Type | Postgres |
+| Host | postgres |
+| Schema | traffic_db |
+| Login | smartcity |
+| Password | smartcity123 |
+| Port | 5432 |
+
+---
+
+#### 6. Trigger Airflow DAG
+
+After configuring the database connection:
+
+1. Open the DAGs page in Airflow
+2. Enable the DAG
+3. Trigger the DAG manually
+
+The DAG performs:
+
+- Daily traffic aggregation
+- Peak-hour analysis
+- Congestion analysis
+- Intervention report generation
+- Visualization report generation
+
+---
+
+#### 7. Access System Dashboards
+
+| Service | URL |
+|---------|-----|
+| React Dashboard | http://localhost:5173 |
+| Airflow UI | http://localhost:8085 |
+| Spark Master UI | http://localhost:8080 |
+| Grafana Dashboard | http://localhost:3000 |
